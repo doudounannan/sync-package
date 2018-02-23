@@ -1,22 +1,7 @@
 {
     "presets": [
-        "stage-3",
-        "es2015"
+        "es2015",
+        "stage-3"
     ],
-    "plugins": [
-        [
-            "transform-runtime",
-            {
-                "helpers": false,
-                "polyfill": false,
-                "regenerator": true,
-                "moduleName": "babel-runtime"
-            }
-        ]
-    ]
+    "plugins": ["transform-runtime"]
 }
-
-作者：yaya520
-链接：https://www.jianshu.com/p/dc4a1abbc490
-來源：简书
-著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。

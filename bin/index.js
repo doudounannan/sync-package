@@ -17,14 +17,13 @@ program
     .description('用于' + chalk.red(`${APP_INFO.desc}`))
     .option('-s, --source <path>', '包路径(绝对路径)<必须>')
     .option('-t, --target <path>', '安装该包项目路径(绝对路径)<必须>')
-    .option('-o, --output [path]', '该包构建生产环境目录名[非必须]')
     //自定义帮助信息
     .on('--help', function() {
         process.stdout.write('\n');
         Util.log(chalk.black.bgCyan('  Examples:'));
         process.stdout.write('\n');
         Util.log(chalk.green(`    # ${APP_INFO.desc}`))
-        Util.log(`    $ ${APP_INFO.name} -s /Users/XXX -t /Users/YYY -o ZZZ`);
+        Util.log(`    $ ${APP_INFO.name} -s /Users/XXX -t /Users/YYY`);
         process.stdout.write('\n');
     });
 
@@ -33,12 +32,40 @@ program.parse(process.argv);
 (!program.source || !program.target) && program.help();
 
 /**
+ * copyFiles 拷贝
+ * @param: copyObj Object 拷贝对象
+ */
+const copyFiles = (copyObj) => {
+    process.stdout.write('\n');
+    Util.log(chalk.cyan('  正在拷贝...'));
+
+    try {
+        fse.copySync(copyObj.packagejsonSource, copyObj.packagejsonTarget);
+    } catch (errCopyFile) {
+        Util.log(chalk.red('  🎌 拷贝 package.json 出错!'));
+        throw errCopyFile;
+    }
+
+    fse.copy(copyObj.directorySource, copyObj.directoryTarget)
+        .then(() => {
+            const durationS = (Date.now() - startTime) / 1000;
+
+            Util.log(chalk.green(`  ✨ 同步完成!`));
+            Util.log(`  用时 ` + chalk.magenta(`💡 ${durationS}`) + ` s`);
+        })
+        .catch(errCopyDirectory => {
+            Util.log(chalk.red('  🎌 拷贝出错!'));
+            throw errCopyDirectory;
+        });
+}
+
+/**
  * syncPackage 构建 + 拷贝
  * @param: source String 想要拷贝的源目录路径
  * @param: target String 想要拷贝的目标目录路径
  * @param: target String 想要拷贝的目标目录路径
  */
-const syncPackage = (source, target, output='dist') => {
+const syncPackage = (source, target) => {
     const sourcePackagePath = `${source}/package.json`;
 
     if (!Util.validPath(source) || !fse.existsSync(sourcePackagePath)) {
@@ -71,53 +98,45 @@ const syncPackage = (source, target, output='dist') => {
 
     source = source.replace(/\/$/, '');
     target = target.replace(/\/$/, '');
-    output = output.replace(/(^\/)|(\/$)/g, '');
 
     const packageInfo = require(sourcePackagePath);
-    const {name} = packageInfo;
+    const {name,main} = packageInfo;
 
     fse.ensureDirSync(target);
 
     Util.log(chalk.blue(`  包路径: `) + `${source}`);
     Util.log(chalk.blue(`  安装该包项目路径: `) +  `${target}`);
-    Util.log(chalk.blue(`  该包构建生产环境目录名: `) +  `${output}`);
     Util.log(chalk.blue(`  包名称: `) + `${name}`);
 
-    const processAnimation = Util.showLoadingWithText('  正在构建...');
+    const output = main.split('/')[0];
+    const initCopyObj = {
+        packagejsonSource: `${source}/package.json`,
+        packagejsonTarget: `${target}/node_modules/${name}/package.json`,
+        directorySource: `${source}/${output}/`,
+        directoryTarget: `${target}/node_modules/${name}/${output}/`
+    };
 
-    const child = exec(`cd ${source} && npm run prepare`, (errRelease, stdoutRelease, stderrRelease) => {
+    if (main === 'dist/src/index.js') {
+        Util.log(chalk.yellow('  老版本依赖于构建,需要 10s 左右的时间，请您耐心等待'));
 
-        Util.log(stdoutRelease);
+        const processAnimation = Util.showLoadingWithText('  正在构建...');
 
-        processAnimation.stop();
+        exec(`cd ${source} && npm run prepare`, (errRelease, stdoutRelease, stderrRelease) => {
 
-        if (errRelease) {
-            Util.log(chalk.red('  🎌 构建出错!'));
-            throw errRelease;
-        }
+            Util.log(stdoutRelease);
 
-        process.stdout.write('\n');
-        Util.log(chalk.cyan('  正在拷贝...'));
+            processAnimation.stop();
 
-        try {
-            fse.copySync(`${source}/package.json`, `${target}/node_modules/${name}/package.json`)
-        } catch (errCopyFile) {
-            Util.log(chalk.red('  🎌 拷贝 package.json 出错!'));
-            throw errCopyFile;
-        }
+            if (errRelease) {
+                Util.log(chalk.red('  🎌 构建出错!'));
+                throw errRelease;
+            }
 
-        fse.copy(`${source}/${output}/`, `${target}/node_modules/${name}/${output}/`)
-            .then(() => {
-                const durationS = (Date.now() - startTime) / 1000;
-
-                Util.log(chalk.green(`  ✨ 同步完成!`));
-                Util.log(`  用时 ` + chalk.magenta(`💡 ${durationS}`) + ` s`);
-            })
-            .catch(errCopyDirectory => {
-                Util.log(chalk.red('  🎌 拷贝出错!'));
-                throw errCopyDirectory;
-            });
-    });
+            copyFiles(initCopyObj);
+        });
+    } else {
+        copyFiles(initCopyObj);
+    }
 };
 
-syncPackage(program.source, program.target, program.output);
+syncPackage(program.source, program.target);
