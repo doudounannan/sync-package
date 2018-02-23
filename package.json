@@ -1,5 +1,5 @@
 {
-  "name": "sync-package",
+  "name": "sync-package-info",
   "version": "1.0.0",
   "description": "同步包信息",
   "main": "index.js",
